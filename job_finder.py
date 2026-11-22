@@ -2,7 +2,7 @@
 """
 Job finder: reads companies from config.yaml, pulls their open jobs from the
 company's public job-board feed, filters by title / experience / location, and
-saves NEW matches to a .docx (plus a running CSV). It never applies to anything.
+saves NEW matches to a single .docx. It never applies to anything.
 
 Run:  python job_finder.py            (uses config.yaml next to this file)
       python job_finder.py -c other.yaml
@@ -276,7 +276,7 @@ def norm(s):
     """Lower-case (casefold), strip accents, collapse whitespace - so matching ignores case/spacing."""
     s = unicodedata.normalize("NFKD", str(s if s is not None else ""))
     s = "".join(ch for ch in s if not unicodedata.combining(ch))
-    s = s.replace(" ", " ").casefold()
+    s = s.replace("\xa0", " ").casefold()
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -499,14 +499,25 @@ def write_docx(path, rows, manual=()):
             p = cells[3].paragraphs[0]
             add_hyperlink(p, r["url"], "Open job")
             p.add_run(f"  ({r['note']})")
+
+    # Always-present, separate table of manual-check links
+    doc.add_heading("MANUAL links - check these yourself", level=2)
     if manual:
-        doc.add_heading("Check these manually", level=2)
+        mtable = doc.add_table(rows=1, cols=3)
+        mtable.style = "Light Grid Accent 1"
+        for cell, label in zip(mtable.rows[0].cells, ["Tag", "Company", "Link"]):
+            cell.text = label
         for c in manual:
-            p = doc.add_paragraph(f"{c['name']}: ")
+            cells = mtable.add_row().cells
+            cells[0].text = "MANUAL"
+            cells[1].text = c["name"]
+            p = cells[2].paragraphs[0]
             if c.get("url"):
-                add_hyperlink(p, c["url"], "open saved search")
+                add_hyperlink(p, c["url"], "Open saved search")
             else:
                 p.add_run("(add a url in config.yaml)")
+    else:
+        doc.add_paragraph("No manual companies in config.yaml.")
     doc.save(path)
 
 
@@ -620,15 +631,6 @@ def main():
     if new_rows or manual:
         stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
         write_docx(out_dir / f"jobs_{stamp}.docx", new_rows, manual)
-        csv_path = out_dir / "all_jobs.csv"
-        is_new = not csv_path.exists()
-        with open(csv_path, "a", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            if is_new:
-                w.writerow(["date", "company", "title", "location", "verdict", "note", "url"])
-            for r in new_rows:
-                w.writerow([date.today(), r["company"], r["title"], r["location"],
-                            r["verdict"], r["note"], r["url"]])
         seen_file.write_text(json.dumps(sorted(seen)))
         print(f"\nSaved {len(new_rows)} new jobs to {out_dir}")
     else:

@@ -50,7 +50,7 @@ max_runtime_minutes: 180
 output_dir: output
 
 companies:
-  # - {name: Stripe,          source: greenhouse, board: stripe}
+  - {name: Stripe,          source: greenhouse, board: stripe}
   # - {name: Databricks,      source: greenhouse, board: databricks}
   # - {name: Airbnb,          source: greenhouse, board: airbnb}
   # - {name: Coinbase,        source: greenhouse, board: coinbase}
@@ -88,7 +88,7 @@ companies:
   # - {name: Fivetran,        source: greenhouse, board: fivetran}
   # - {name: Toast,           source: greenhouse, board: toast}
 
-  # - {name: Amazon, source: amazon, location: India, country: IND}
+  - {name: Amazon, source: amazon, location: India, country: IND}
 
   # - {name: Atlassian, source: atlassian}
 
@@ -143,12 +143,11 @@ companies:
   # - {name: Zoom,                  source: workday, host: zoom.wd5.myworkdayjobs.com,                 tenant: zoom,                  site: Zoom}
 
 
-  # - {name: Google,        source: manual, url: "https://www.google.com/about/careers/applications/jobs/results?q=software%20engineer&location=India&target_level=EARLY"}
+  - {name: Google,        source: manual, url: "https://www.google.com/about/careers/applications/jobs/results?q=software%20engineer&location=India&target_level=EARLY"}
   # - {name: Microsoft,     source: manual, url: "https://apply.careers.microsoft.com/careers?query=software%20engineer&location=India"}
   # - {name: LinkedIn,      source: manual, url: "https://www.linkedin.com/jobs/search/?keywords=software%20engineer&location=India&f_C=1337"}
   # - {name: Rippling,      source: manual, url: "https://ats.rippling.com/rippling/jobs"}
   # - {name: Uber,          source: manual, url: "https://www.uber.com/in/en/careers/list/?query=software%20engineer"}
-  # - {name: Goldman Sachs, source: manual, url: "https://higher.gs.com/results?search=software%20engineer"}
 
 
   # - {name: NXP Semiconductors, source: workday, host: nxp.myworkdayjobs.com, tenant: nxp, site: careers}
