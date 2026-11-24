@@ -1,12 +1,25 @@
-titles:                      # job title must contain at least one of these
-  - software engineer
+titles:
+  - software engineer          # already covers software developer / SDE via aliases
   - software development engineer
   - sde
   - ai engineer
+  - artificial intelligence engineer
   - machine learning engineer
   - ml engineer
   - data engineer
-  - artificial intelligence engineer
+  - backend engineer
+  - frontend engineer
+  - full stack engineer
+  - fullstack engineer
+  - web developer
+  - python developer
+  - java developer
+  - applied scientist          # Amazon uses this for ML roles
+  - research engineer
+  - associate software engineer
+  - graduate engineer trainee
+  - engineering associate
+
 
 exclude_title_words:         # skip titles containing any of these
   - senior
@@ -19,16 +32,15 @@ exclude_title_words:         # skip titles containing any of these
   - sr.
   - test
   - quality
-  - intern
-  - product
   - management
   - business
-  - staff
   - it
   - chief
   - operations
   - hardware
   - internship
+  - contract
+  - consultant
 
 max_years_experience: 1      # accept jobs whose minimum required experience is <= this
 
@@ -43,6 +55,9 @@ locations:                   # job location must contain one of these ([] = no f
   - noida
   - goa
   - mumbai
+  - chennai
+  - tamil nadu
+  - karnataka
 
 exclude_description_words: []   # e.g. ["security clearance"]
 
@@ -50,169 +65,155 @@ max_runtime_minutes: 180
 output_dir: output
 
 companies:
-  - {name: Stripe,          source: greenhouse, board: stripe}
-  - {name: Databricks,      source: greenhouse, board: databricks}
-  - {name: Airbnb,          source: greenhouse, board: airbnb}
-  - {name: Coinbase,        source: greenhouse, board: coinbase}
-  - {name: Anthropic,       source: greenhouse, board: anthropic}
-  - {name: SpaceX,          source: greenhouse, board: spacex}
-  - {name: Discord,         source: greenhouse, board: discord}
-  - {name: Figma,           source: greenhouse, board: figma}
-  - {name: Cloudflare,      source: greenhouse, board: cloudflare}
-  - {name: Vercel,          source: greenhouse, board: vercel}
-  - {name: Dropbox,         source: greenhouse, board: dropbox}
-  - {name: Robinhood,       source: greenhouse, board: robinhood}
-  - {name: Lyft,            source: greenhouse, board: lyft}
-  - {name: Pinterest,       source: greenhouse, board: pinterest}
-  - {name: Reddit,          source: greenhouse, board: reddit}
-  - {name: Twilio,          source: greenhouse, board: twilio}
-  - {name: Datadog,         source: greenhouse, board: datadog}
-  - {name: MongoDB,         source: greenhouse, board: mongodb}
-  - {name: Instacart,       source: greenhouse, board: instacart}
-  - {name: Roblox,          source: greenhouse, board: roblox}
-  - {name: GitLab,          source: greenhouse, board: gitlab}
-  - {name: Grafana Labs,    source: greenhouse, board: grafanalabs}
-  - {name: Asana,           source: greenhouse, board: asana}
-  - {name: Okta,            source: greenhouse, board: okta}
-  - {name: Affirm,          source: greenhouse, board: affirm}
-  - {name: Brex,            source: greenhouse, board: brex}
-  - {name: Scale AI,        source: greenhouse, board: scaleai}
-  - {name: Anduril,         source: greenhouse, board: andurilindustries}
-  - {name: DoorDash,        source: greenhouse, board: doordashusa}
-  - {name: Elastic,         source: greenhouse, board: elastic}
-  - {name: Glean,           source: greenhouse, board: gleanwork}
-  - {name: Chime,           source: greenhouse, board: chime}
-  - {name: Flexport,        source: greenhouse, board: flexport}
-  - {name: Samsara,         source: greenhouse, board: samsara}
-  - {name: Rocket Lab,      source: greenhouse, board: rocketlab}
-  - {name: Fivetran,        source: greenhouse, board: fivetran}
-  - {name: Toast,           source: greenhouse, board: toast}
+  # - {name: Stripe,          source: greenhouse, board: stripe}
+  # - {name: Databricks,      source: greenhouse, board: databricks}
+  # - {name: Airbnb,          source: greenhouse, board: airbnb}
+  # - {name: Coinbase,        source: greenhouse, board: coinbase}
+  # - {name: Anthropic,       source: greenhouse, board: anthropic}
+  # - {name: SpaceX,          source: greenhouse, board: spacex}
+  # - {name: Discord,         source: greenhouse, board: discord}
+  # - {name: Figma,           source: greenhouse, board: figma}
+  # - {name: Cloudflare,      source: greenhouse, board: cloudflare}
+  # - {name: Vercel,          source: greenhouse, board: vercel}
+  # - {name: Lyft,            source: greenhouse, board: lyft}
+  # - {name: Pinterest,       source: greenhouse, board: pinterest}
+  # - {name: Reddit,          source: greenhouse, board: reddit}
+  # - {name: Twilio,          source: greenhouse, board: twilio}
+  # - {name: Datadog,         source: greenhouse, board: datadog}
+  # - {name: MongoDB,         source: greenhouse, board: mongodb}
+  # - {name: Instacart,       source: greenhouse, board: instacart}
+  # - {name: Roblox,          source: greenhouse, board: roblox}
+  # - {name: GitLab,          source: greenhouse, board: gitlab}
+  # - {name: Grafana Labs,    source: greenhouse, board: grafanalabs}
+  # - {name: Okta,            source: greenhouse, board: okta}
+  # - {name: Scale AI,        source: greenhouse, board: scaleai}
+  # - {name: Elastic,         source: greenhouse, board: elastic}
+  # - {name: Glean,           source: greenhouse, board: gleanwork}
+  # - {name: Flexport,        source: greenhouse, board: flexport}
+  # - {name: Fivetran,        source: greenhouse, board: fivetran}
+  # - {name: Toast,           source: greenhouse, board: toast}
 
-  - {name: Amazon, source: amazon, location: India, country: IND}
+  # - {name: Amazon, source: amazon, location: India, country: IND}
 
-  - {name: Atlassian, source: atlassian}
+  # - {name: Atlassian, source: atlassian}
 
-  - {name: NVIDIA,     source: workday, host: nvidia.wd5.myworkdayjobs.com,      tenant: nvidia,      site: NVIDIAExternalCareerSite}
-  - {name: Adobe,      source: workday, host: adobe.wd5.myworkdayjobs.com,       tenant: adobe,       site: external_experienced}
-  - {name: Salesforce, source: workday, host: salesforce.wd12.myworkdayjobs.com, tenant: salesforce,  site: External_Career_Site}
-  - {name: Postman, source: workday, host: postman.wd108.myworkdayjobs.com, tenant: postman, site: careers}
-  - {name: 3M,                    source: workday, host: 3m.wd1.myworkdayjobs.com,                    tenant: 3m,                    site: Search}
-  - {name: Abbott,                source: workday, host: abbott.wd5.myworkdayjobs.com,                 tenant: abbott,                site: abbottcareers}
-  - {name: Accenture,             source: workday, host: accenture.wd103.myworkdayjobs.com,             tenant: accenture,             site: AccentureCareers}
-  - {name: Analog Devices,        source: workday, host: analogdevices.wd1.myworkdayjobs.com,         tenant: analogdevices,        site: External}
-  - {name: AstraZeneca,           source: workday, host: astrazeneca.wd3.myworkdayjobs.com,            tenant: astrazeneca,           site: Careers}
-  - {name: Boeing,                source: workday, host: boeing.wd1.myworkdayjobs.com,                tenant: boeing,                site: EXTERNAL_CAREERS}
-  - {name: Broadcom,              source: workday, host: broadcom.wd1.myworkdayjobs.com,              tenant: broadcom,              site: External_Career}
-  - {name: Capital One,           source: workday, host: capitalone.wd12.myworkdayjobs.com,           tenant: capitalone,           site: Capital_One}
-  - {name: Cardinal Health,       source: workday, host: cardinalhealth.wd1.myworkdayjobs.com,       tenant: cardinalhealth,       site: EXT}
-  - {name: Chevron,               source: workday, host: chevron.wd5.myworkdayjobs.com,               tenant: chevron,               site: jobs}
-  - {name: CVS Health,            source: workday, host: cvshealth.wd1.myworkdayjobs.com,             tenant: cvshealth,             site: CVS_Health_Careers}
-  - {name: Disney,                source: workday, host: disney.wd5.myworkdayjobs.com,                tenant: disney,                site: disneycareer}
-  - {name: Equinix,               source: workday, host: equinix.wd1.myworkdayjobs.com,               tenant: equinix,               site: External}
-  - {name: FIS,                   source: workday, host: fis.wd5.myworkdayjobs.com,                   tenant: fis,                   site: SearchJobs}
-  - {name: General Motors,        source: workday, host: generalmotors.wd5.myworkdayjobs.com,        tenant: generalmotors,        site: Careers_GM}
-  - {name: Gilead Sciences,       source: workday, host: gilead.wd1.myworkdayjobs.com,               tenant: gilead,                site: gileadcareers}
-  - {name: GlobalFoundries,       source: workday, host: globalfoundries.wd1.myworkdayjobs.com,      tenant: globalfoundries,      site: External}
-  - {name: GSK,                   source: workday, host: gsk.wd5.myworkdayjobs.com,                  tenant: gsk,                   site: GSKCareers}
-  - {name: HP,                    source: workday, host: hp.wd5.myworkdayjobs.com,                   tenant: hp,                    site: ExternalCareerSite}
-  - {name: Humana,                source: workday, host: humana.wd5.myworkdayjobs.com,              tenant: humana,                site: Humana_External_Career_Site}
-  - {name: Intel,                 source: workday, host: intel.wd1.myworkdayjobs.com,                tenant: intel,                 site: External}
-  - {name: Johnson & Johnson,     source: workday, host: jj.wd5.myworkdayjobs.com,                   tenant: jj,                    site: JJ}
-  - {name: KLA,                   source: workday, host: kla.wd1.myworkdayjobs.com,                  tenant: kla,                   site: Search}
-  - {name: Marvell,               source: workday, host: marvell.wd1.myworkdayjobs.com,              tenant: marvell,               site: MarvellCareers}
-  - {name: Mastercard,            source: workday, host: mastercard.wd1.myworkdayjobs.com,           tenant: mastercard,            site: CorporateCareers}
-  - {name: McKesson,              source: workday, host: mckesson.wd3.myworkdayjobs.com,             tenant: mckesson,              site: External_Careers}
-  - {name: Medtronic,             source: workday, host: medtronic.wd1.myworkdayjobs.com,            tenant: medtronic,             site: MedtronicCareers}
-  - {name: Merck (MSD),           source: workday, host: msd.wd5.myworkdayjobs.com,                  tenant: msd,                   site: SearchJobs}
-  - {name: Motorola Solutions,    source: workday, host: motorolasolutions.wd5.myworkdayjobs.com,   tenant: motorolasolutions,    site: Careers}
-  - {name: Nasdaq,                source: workday, host: nasdaq.wd1.myworkdayjobs.com,               tenant: nasdaq,                site: Global_External_Site}
-  - {name: Nike,                  source: workday, host: nike.wd1.myworkdayjobs.com,                 tenant: nike,                  site: nke}
-  - {name: Novartis,              source: workday, host: novartis.wd3.myworkdayjobs.com,             tenant: novartis,              site: Novartis_Careers}
-  - {name: PayPal,                source: workday, host: paypal.wd1.myworkdayjobs.com,               tenant: paypal,                site: jobs}
-  - {name: Pfizer,                source: workday, host: pfizer.wd1.myworkdayjobs.com,               tenant: pfizer,                site: PfizerCareers}
-  - {name: Philips,               source: workday, host: philips.wd3.myworkdayjobs.com,              tenant: philips,               site: jobs-and-careers}
-  - {name: PwC,                   source: workday, host: pwc.wd3.myworkdayjobs.com,                  tenant: pwc,                   site: Global_Experienced_Careers}
-  - {name: Red Hat,               source: workday, host: redhat.wd5.myworkdayjobs.com,               tenant: redhat,                site: jobs}
-  - {name: Samsung,               source: workday, host: sec.wd3.myworkdayjobs.com,                  tenant: sec,                   site: Samsung_Careers}
-  - {name: Sanofi,                source: workday, host: sanofi.wd3.myworkdayjobs.com,               tenant: sanofi,                site: SanofiCareers}
-  - {name: State Street,          source: workday, host: statestreet.wd1.myworkdayjobs.com,          tenant: statestreet,          site: Global}
-  - {name: Target,                source: workday, host: target.wd5.myworkdayjobs.com,               tenant: target,                site: targetcareers}
-  - {name: Thomson Reuters,       source: workday, host: thomsonreuters.wd5.myworkdayjobs.com,      tenant: thomsonreuters,       site: External_Career_Site}
-  - {name: Travelers,             source: workday, host: travelers.wd5.myworkdayjobs.com,            tenant: travelers,             site: External}
-  - {name: Workday,               source: workday, host: workday.wd5.myworkdayjobs.com,              tenant: workday,               site: Workday}
-  - {name: Zoom,                  source: workday, host: zoom.wd5.myworkdayjobs.com,                 tenant: zoom,                  site: Zoom}
+  # - {name: NVIDIA,     source: workday, host: nvidia.wd5.myworkdayjobs.com,      tenant: nvidia,      site: NVIDIAExternalCareerSite}
+  # - {name: Adobe,      source: workday, host: adobe.wd5.myworkdayjobs.com,       tenant: adobe,       site: external_experienced}
+  # - {name: Salesforce, source: workday, host: salesforce.wd12.myworkdayjobs.com, tenant: salesforce,  site: External_Career_Site}
+  # - {name: Postman, source: workday, host: postman.wd108.myworkdayjobs.com, tenant: postman, site: careers}
+  # - {name: 3M,                    source: workday, host: 3m.wd1.myworkdayjobs.com,                    tenant: 3m,                    site: Search}
+  # - {name: Accenture,             source: workday, host: accenture.wd103.myworkdayjobs.com,             tenant: accenture,             site: AccentureCareers}
+  # - {name: Analog Devices,        source: workday, host: analogdevices.wd1.myworkdayjobs.com,         tenant: analogdevices,        site: External}
+  # - {name: AstraZeneca,           source: workday, host: astrazeneca.wd3.myworkdayjobs.com,            tenant: astrazeneca,           site: Careers}
+  # - {name: Boeing,                source: workday, host: boeing.wd1.myworkdayjobs.com,                tenant: boeing,                site: EXTERNAL_CAREERS}
+  # - {name: Broadcom,              source: workday, host: broadcom.wd1.myworkdayjobs.com,              tenant: broadcom,              site: External_Career}
+  # - {name: Capital One,           source: workday, host: capitalone.wd12.myworkdayjobs.com,           tenant: capitalone,           site: Capital_One}
+  # - {name: Cardinal Health,       source: workday, host: cardinalhealth.wd1.myworkdayjobs.com,       tenant: cardinalhealth,       site: EXT}
+  # - {name: Chevron,               source: workday, host: chevron.wd5.myworkdayjobs.com,               tenant: chevron,               site: jobs}
+  # - {name: CVS Health,            source: workday, host: cvshealth.wd1.myworkdayjobs.com,             tenant: cvshealth,             site: CVS_Health_Careers}
+  # - {name: Disney,                source: workday, host: disney.wd5.myworkdayjobs.com,                tenant: disney,                site: disneycareer}
+  # - {name: Equinix,               source: workday, host: equinix.wd1.myworkdayjobs.com,               tenant: equinix,               site: External}
+  # - {name: FIS,                   source: workday, host: fis.wd5.myworkdayjobs.com,                   tenant: fis,                   site: SearchJobs}
+  # - {name: General Motors,        source: workday, host: generalmotors.wd5.myworkdayjobs.com,        tenant: generalmotors,        site: Careers_GM}
+  # - {name: Gilead Sciences,       source: workday, host: gilead.wd1.myworkdayjobs.com,               tenant: gilead,                site: gileadcareers}
+  # - {name: GlobalFoundries,       source: workday, host: globalfoundries.wd1.myworkdayjobs.com,      tenant: globalfoundries,      site: External}
+  # - {name: GSK,                   source: workday, host: gsk.wd5.myworkdayjobs.com,                  tenant: gsk,                   site: GSKCareers}
+  # - {name: HP,                    source: workday, host: hp.wd5.myworkdayjobs.com,                   tenant: hp,                    site: ExternalCareerSite}
+  # - {name: Humana,                source: workday, host: humana.wd5.myworkdayjobs.com,              tenant: humana,                site: Humana_External_Career_Site}
+  # - {name: Intel,                 source: workday, host: intel.wd1.myworkdayjobs.com,                tenant: intel,                 site: External}
+  # - {name: Johnson & Johnson,     source: workday, host: jj.wd5.myworkdayjobs.com,                   tenant: jj,                    site: JJ}
+  # - {name: KLA,                   source: workday, host: kla.wd1.myworkdayjobs.com,                  tenant: kla,                   site: Search}
+  # - {name: Marvell,               source: workday, host: marvell.wd1.myworkdayjobs.com,              tenant: marvell,               site: MarvellCareers}
+  # - {name: Mastercard,            source: workday, host: mastercard.wd1.myworkdayjobs.com,           tenant: mastercard,            site: CorporateCareers}
+  # - {name: McKesson,              source: workday, host: mckesson.wd3.myworkdayjobs.com,             tenant: mckesson,              site: External_Careers}
+  # - {name: Medtronic,             source: workday, host: medtronic.wd1.myworkdayjobs.com,            tenant: medtronic,             site: MedtronicCareers}
+  # - {name: Merck (MSD),           source: workday, host: msd.wd5.myworkdayjobs.com,                  tenant: msd,                   site: SearchJobs}
+  # - {name: Motorola Solutions,    source: workday, host: motorolasolutions.wd5.myworkdayjobs.com,   tenant: motorolasolutions,    site: Careers}
+  # - {name: Nasdaq,                source: workday, host: nasdaq.wd1.myworkdayjobs.com,               tenant: nasdaq,                site: Global_External_Site}
+  # - {name: Nike,                  source: workday, host: nike.wd1.myworkdayjobs.com,                 tenant: nike,                  site: nke}
+  # - {name: PayPal,                source: workday, host: paypal.wd1.myworkdayjobs.com,               tenant: paypal,                site: jobs}
+  # - {name: Pfizer,                source: workday, host: pfizer.wd1.myworkdayjobs.com,               tenant: pfizer,                site: PfizerCareers}
+  # - {name: Philips,               source: workday, host: philips.wd3.myworkdayjobs.com,              tenant: philips,               site: jobs-and-careers}
+  # - {name: PwC,                   source: workday, host: pwc.wd3.myworkdayjobs.com,                  tenant: pwc,                   site: Global_Experienced_Careers}
+  # - {name: Red Hat,               source: workday, host: redhat.wd5.myworkdayjobs.com,               tenant: redhat,                site: jobs}
+  # - {name: Samsung,               source: workday, host: sec.wd3.myworkdayjobs.com,                  tenant: sec,                   site: Samsung_Careers}
+  # - {name: Sanofi,                source: workday, host: sanofi.wd3.myworkdayjobs.com,               tenant: sanofi,                site: SanofiCareers}
+  # - {name: State Street,          source: workday, host: statestreet.wd1.myworkdayjobs.com,          tenant: statestreet,          site: Global}
+  # - {name: Target,                source: workday, host: target.wd5.myworkdayjobs.com,               tenant: target,                site: targetcareers}
+  # - {name: Thomson Reuters,       source: workday, host: thomsonreuters.wd5.myworkdayjobs.com,      tenant: thomsonreuters,       site: External_Career_Site}
+  # - {name: Travelers,             source: workday, host: travelers.wd5.myworkdayjobs.com,            tenant: travelers,             site: External}
+  # - {name: Zoom,                  source: workday, host: zoom.wd5.myworkdayjobs.com,                 tenant: zoom,                  site: Zoom}
 
 
-  - {name: Google,        source: manual, url: "https://www.google.com/about/careers/applications/jobs/results?q=software%20engineer&location=India&target_level=EARLY"}
-  - {name: Microsoft,     source: manual, url: "https://apply.careers.microsoft.com/careers?query=software%20engineer&location=India"}
-  - {name: LinkedIn,      source: manual, url: "https://www.linkedin.com/jobs/search/?keywords=software%20engineer&location=India&f_C=1337"}
-  - {name: Rippling,      source: manual, url: "https://ats.rippling.com/rippling/jobs"}
-  - {name: Uber,          source: manual, url: "https://www.uber.com/in/en/careers/list/?query=software%20engineer"}
+  # - {name: Google,        source: manual, url: "https://www.google.com/about/careers/applications/jobs/results?q=software%20engineer&location=India&target_level=EARLY"}
+  # - {name: Microsoft,     source: manual, url: "https://apply.careers.microsoft.com/careers?query=software%20engineer&location=India"}
+  # - {name: Rippling,      source: manual, url: "https://ats.rippling.com/rippling/jobs"}
+  # - {name: Uber,          source: manual, url: "https://www.uber.com/in/en/careers/list/?query=software%20engineer"}
 
 
-  - {name: NXP Semiconductors, source: workday, host: nxp.myworkdayjobs.com, tenant: nxp, site: careers}
-  - {name: JPMorgan Chase, source: oracle, host: jpmc.fa.oraclecloud.com, site: CX_1001}
-  - {name: Oracle,              source: oracle, host: eeho.fa.us2.oraclecloud.com,                              site: jobsearch}
-  - {name: Goldman Sachs,       source: oracle, host: hdpc.fa.us2.oraclecloud.com,                             site: CampusHiring}
-  - {name: Ford,                source: oracle, host: efds.fa.em5.oraclecloud.com,                              site: CX_1}
-  - {name: Vertiv,              source: oracle, host: egup.fa.us2.oraclecloud.com,                              site: CX}
-  - {name: Fanatics,            source: oracle, host: fa-exki-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_1}
-  - {name: DTCC,                source: oracle, host: ebxr.fa.us2.oraclecloud.com,                              site: CX_1}
+  # - {name: NXP Semiconductors, source: workday, host: nxp.myworkdayjobs.com, tenant: nxp, site: careers}
+  # - {name: JPMorgan Chase, source: oracle, host: jpmc.fa.oraclecloud.com, site: CX_1001}
+  # - {name: Oracle,              source: oracle, host: eeho.fa.us2.oraclecloud.com,                              site: jobsearch}
+  # - {name: Goldman Sachs,       source: oracle, host: hdpc.fa.us2.oraclecloud.com,                             site: CampusHiring}
+  # - {name: Ford,                source: oracle, host: efds.fa.em5.oraclecloud.com,                              site: CX_1}
+  # - {name: Vertiv,              source: oracle, host: egup.fa.us2.oraclecloud.com,                              site: CX}
+  # - {name: DTCC,                source: oracle, host: ebxr.fa.us2.oraclecloud.com,                              site: CX_1}
 
   - {name: Hilton,              source: oracle, host: efet.fa.us2.oraclecloud.com,                              site: CX_1009}
-  - {name: IHG,                 source: oracle, host: fa-evax-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_1001}
-  - {name: Sherwin-Williams,    source: oracle, host: ejhp.fa.us6.oraclecloud.com,                              site: CX_2}
-  - {name: EXL,                 source: oracle, host: fa-ewjt-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_2}
-  - {name: Startek,             source: oracle, host: fa-evuf-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_1}
-  - {name: Aster DM Healthcare, source: oracle, host: hcdt.fa.us2.oraclecloud.com,                              site: CX}
-  - {name: American Eagle,      source: oracle, host: hcml.fa.us2.oraclecloud.com,                              site: CX_2}
-  - {name: AutoZone,            source: oracle, host: egud.fa.us2.oraclecloud.com,                              site: CX_1}
-  - {name: Stantec,             source: oracle, host: hdhl.fa.us6.oraclecloud.com,                              site: CX_1}
-  - {name: Marks & Spencer,     source: oracle, host: fa-eqid-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_1}
-  - {name: Kotak Mahindra Bank, source: oracle, host: hcbt.fa.em2.oraclecloud.com,                              site: CX}
-  - {name: Marriott,            source: oracle, host: ejwl.fa.us2.oraclecloud.com,                              site: CX}
-  - {name: Macy's,              source: oracle, host: ebwh.fa.us2.oraclecloud.com,                              site: CX_1001}
-  - {name: International Paper, source: oracle, host: iazbqy.fa.ocs.oraclecloud.com,                            site: CX_1}
+  # - {name: IHG,                 source: oracle, host: fa-evax-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_1001}
+  # - {name: Sherwin-Williams,    source: oracle, host: ejhp.fa.us6.oraclecloud.com,                              site: CX_2}
+  # - {name: EXL,                 source: oracle, host: fa-ewjt-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_2}
+  # - {name: Startek,             source: oracle, host: fa-evuf-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_1}
+  # - {name: Aster DM Healthcare, source: oracle, host: hcdt.fa.us2.oraclecloud.com,                              site: CX}
+  # - {name: Stantec,             source: oracle, host: hdhl.fa.us6.oraclecloud.com,                              site: CX_1}
+  # - {name: Marks & Spencer,     source: oracle, host: fa-eqid-saasfaprod1.fa.ocs.oraclecloud.com,              site: CX_1}
+  # - {name: Kotak Mahindra Bank, source: oracle, host: hcbt.fa.em2.oraclecloud.com,                              site: CX}
+  # - {name: Marriott,            source: oracle, host: ejwl.fa.us2.oraclecloud.com,                              site: CX}
+  # - {name: Macy's,              source: oracle, host: ebwh.fa.us2.oraclecloud.com,                              site: CX_1001}
+  # - {name: International Paper, source: oracle, host: iazbqy.fa.ocs.oraclecloud.com,                            site: CX_1}
  
-  - {name: Swiggy, source: smartrecruiters, board: SWIGGY, country: in}
-  - {name: Paytm, source: lever, board: paytm}
-  - {name: Visa,       source: workday, host: visa.wd5.myworkdayjobs.com,       tenant: visa,       site: Visa}
-  - {name: Expedia,    source: workday, host: expedia.wd108.myworkdayjobs.com,  tenant: expedia,    site: search}
-  - {name: Sprinklr,   source: workday, host: sprinklr.wd1.myworkdayjobs.com,   tenant: sprinklr,   site: careers}
+  # - {name: Swiggy, source: smartrecruiters, board: SWIGGY, country: in}
+  # - {name: Paytm, source: lever, board: paytm}
+  # - {name: Visa,       source: workday, host: visa.wd5.myworkdayjobs.com,       tenant: visa,       site: Visa}
+  # - {name: Expedia,    source: workday, host: expedia.wd108.myworkdayjobs.com,  tenant: expedia,    site: search}
+  # - {name: Sprinklr,   source: workday, host: sprinklr.wd1.myworkdayjobs.com,   tenant: sprinklr,   site: careers}
 
-  - {name: Rockstar Games, source: greenhouse, board: rockstargames}
-  - {name: Arcesium,       source: greenhouse, board: arcesiumllc}
+  # - {name: Rockstar Games, source: greenhouse, board: rockstargames}
+  # - {name: Arcesium,       source: greenhouse, board: arcesiumllc}
 
-  - {name: Zomato,     source: smartrecruiters, board: Zomato1,        country: in}
-  - {name: Citrix,     source: smartrecruiters, board: Citrix1,        country: in}
-  - {name: PhonePe,    source: smartrecruiters, board: PHONEPELIMITED, country: in}
-  - {name: ServiceNow, source: smartrecruiters, board: ServiceNow,     country: in}
+  # - {name: Zomato,     source: smartrecruiters, board: Zomato1,        country: in}
+  # - {name: PhonePe,    source: smartrecruiters, board: PHONEPELIMITED, country: in}
+  # - {name: ServiceNow, source: smartrecruiters, board: ServiceNow,     country: in}
 
-  - {name: Agoda,source: manual, url: "https://careersatagoda.com/vacancies/?keyword=&country=india"}
-  - {name: Cisco,source: manual, url: "https://careers.cisco.com/global/en/c/product-and-engineering-jobs"}
-  - {name: SHL,source: manual, url: "https://www.shl.com/careers/jobs/"}
-  - {name: Sun King,source: manual, url: "https://sunking.pinpointhq.com/?location_id=%5B6039%5D&department_id=%5B11122%5D"}
+  # - {name: Agoda,source: manual, url: "https://careersatagoda.com/vacancies/?keyword=&country=india"}
+  # - {name: Cisco,source: manual, url: "https://careers.cisco.com/global/en/c/product-and-engineering-jobs"}
+  # - {name: SHL,source: manual, url: "https://www.shl.com/careers/jobs/"}
+  # - {name: Sun King,source: manual, url: "https://sunking.pinpointhq.com/?location_id=%5B6039%5D&department_id=%5B11122%5D"}
 
-  - {name: Publicis Sapient,source: manual, url: "https://careers.publicissapient.com/job-search?country=India&teams=Technology+and+Engineering&experienceLevel=Associate+Level"}
+  # - {name: Publicis Sapient,source: manual, url: "https://careers.publicissapient.com/job-search?country=India&teams=Technology+and+Engineering&experienceLevel=Associate+Level"}
 
-  - {name: Snapchat,  source: workday, host: wd1.myworkdaysite.com,       tenant: snapchat, site: snap}
-  - {name: BlackRock, source: workday, host: blackrock.wd1.myworkdayjobs.com, tenant: blackrock, site: BlackRock_Professional}
-  - {name: Cadence,   source: workday, host: cadence.wd1.myworkdayjobs.com,   tenant: cadence,   site: External_Careers}
-  - {name: S&P Global, source: workday, host: spgi.wd5.myworkdayjobs.com,     tenant: spgi,     site: SPGI_Careers}
-  - {name: Fractal,   source: workday, host: fractal.wd1.myworkdayjobs.com,   tenant: fractal,   site: Careers}
-  - {name: SOTI,      source: workday, host: soti.wd3.myworkdayjobs.com,      tenant: soti,      site: Careers}
-  - {name: Airbus,   source: workday, host: ag.wd3.myworkdayjobs.com,        tenant: ag,        site: Airbus}
+  # - {name: Snapchat,  source: workday, host: wd1.myworkdaysite.com,       tenant: snapchat, site: snap}
+  # - {name: BlackRock, source: workday, host: blackrock.wd1.myworkdayjobs.com, tenant: blackrock, site: BlackRock_Professional}
+  # - {name: Cadence,   source: workday, host: cadence.wd1.myworkdayjobs.com,   tenant: cadence,   site: External_Careers}
+  # - {name: S&P Global, source: workday, host: spgi.wd5.myworkdayjobs.com,     tenant: spgi,     site: SPGI_Careers}
+  # - {name: Fractal,   source: workday, host: fractal.wd1.myworkdayjobs.com,   tenant: fractal,   site: Careers}
+  # - {name: SOTI,      source: workday, host: soti.wd3.myworkdayjobs.com,      tenant: soti,      site: Careers}
+  # - {name: Airbus,   source: workday, host: ag.wd3.myworkdayjobs.com,        tenant: ag,        site: Airbus}
 
-  - {name: Yugabyte, source: greenhouse, board: yugabyte}
+  # - {name: Yugabyte, source: greenhouse, board: yugabyte}
 
-  - {name: SAP, source: smartrecruiters, board: SAPITBusinessSysteme, country: in}
+  # - {name: SAP, source: smartrecruiters, board: SAPITBusinessSysteme, country: in}
 
-  - {name: Brillio, source: lever, board: brillio-2}
-  - {name: Bosch,      source: smartrecruiters, board: BoschGroup, country: in}
-  - {name: LinkedIn,   source: smartrecruiters, board: LinkedIn3, country: in}
-  - {name: Nagarro,    source: smartrecruiters, board: Nagarro1, country: in}
-  - {name: NielsenIQ,  source: smartrecruiters, board: NielsenIQ, country: in}
-  - {name: AECOM,      source: smartrecruiters, board: AECOM2, country: in}
+  # - {name: Brillio, source: lever, board: brillio-2}
+  # - {name: Bosch,      source: smartrecruiters, board: BoschGroup, country: in}
+  # - {name: LinkedIn,   source: smartrecruiters, board: LinkedIn3, country: in}
+  # - {name: Nagarro,    source: smartrecruiters, board: Nagarro1, country: in}
+  # - {name: NielsenIQ,  source: smartrecruiters, board: NielsenIQ, country: in}
+  # - {name: AECOM,      source: smartrecruiters, board: AECOM2, country: in}
 
-  - {name: Pronto, source: greenhouse, board: pronto}
+  # - {name: Pronto, source: greenhouse, board: pronto}
+
+  # - {name: Emergent Labs, source: greenhouse, board: emergentlabsinc}
+  # - {name: Sarvam AI, source: ashby, board: sarvam}
+  # - {name: LSEG, source: workday, host: lseg.wd3.myworkdayjobs.com, tenant: lseg, site: Careers}
 

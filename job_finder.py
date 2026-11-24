@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Job finder: reads companies from config.yaml, pulls their open jobs from the
-company's public job-board feed, filters by title / experience / location, and
-saves NEW matches to a single .docx. It never applies to anything.
+Job finder (fast version): reads companies from config.yaml, pulls open jobs from
+each company's public job-board feed IN PARALLEL, filters by title / experience /
+location, and saves NEW matches to a single .docx. It never applies to anything.
 
-Run:  python job_finder.py            (uses config.yaml next to this file)
+Run:  python job_finder.py                (uses config.yaml next to this file)
       python job_finder.py -c other.yaml
+      python job_finder.py --workers 32   (more parallelism)
 """
 import argparse
-import csv
+import difflib
 import html
 import json
 import random
@@ -16,49 +17,73 @@ import re
 import sys
 import time
 import unicodedata
-import difflib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from pathlib import Path
+from threading import Lock, Semaphore
+from urllib.parse import urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
 import yaml
 
-# HEADERS = {"User-Agent": "Mozilla/5.0 (personal job search script)"}
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (personal job search script)",
     "Accept-Encoding": "gzip, deflate",
 }
 BASE = Path(__file__).parent
-CHECK_MODE = False  # set by --check: fetch only enough to prove a company works
+CHECK_MODE = False       # set by --check: fetch only enough to prove a company works
+TIMEOUT = (10, 20)       # (connect, read) seconds
+PER_HOST = 6             # max simultaneous requests to the same host
+QUERY_WORKERS = 4        # parallel title-queries inside one company
+DETAIL_WORKERS = 8       # parallel description fetches inside one company
+
+# ----------------------------------------------------------------- http
+SESSION = requests.Session()
+_adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64)
+SESSION.mount("https://", _adapter)
+SESSION.mount("http://", _adapter)
+SESSION.headers.update(HEADERS)
+
+_HOST_SEM, _HOST_LOCK = {}, Lock()
 
 
-# ----------------------------------------------------------------- helpers
-def get(url, **kw):
+def _sem(url):
+    host = urlparse(url).netloc
+    with _HOST_LOCK:
+        return _HOST_SEM.setdefault(host, Semaphore(3 if "myworkday" in host else PER_HOST))
+
+
+def _request(method, url, **kw):
     err = None
-    for attempt in range(1 if CHECK_MODE else 3):
+    attempts = 1 if CHECK_MODE else 3
+    body = kw.get("json") or {}
+    tag = f" [q={body.get('searchText')!r} offset={body.get('offset')}]" if body else ""
+    for attempt in range(attempts):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=30, **kw)
+            with _sem(url):
+                r = SESSION.request(method, url, timeout=TIMEOUT, **kw)
             r.raise_for_status()
             return r
+        except requests.HTTPError as e:
+            err = e
+            code = e.response.status_code if e.response is not None else 0
+            if 400 <= code < 500 and code != 429:
+                break                      # wrong board/host: retrying won't help
         except requests.RequestException as e:
             err = e
-            time.sleep(2 * (attempt + 1))
-    print(f"   [fetch failed] {url.split('?')[0]} -> {err}")
+        if attempt < attempts - 1:
+            time.sleep(1 + 2 * attempt)
+    print(f"   [fetch failed] {url.split('?')[0]}{tag} -> {err}")
     return None
+
+
+def get(url, **kw):
+    return _request("GET", url, **kw)
 
 
 def post(url, payload):
-    err = None
-    for attempt in range(1 if CHECK_MODE else 3):
-        try:
-            r = requests.post(url, json=payload, headers=HEADERS, timeout=30)
-            r.raise_for_status()
-            return r
-        except requests.RequestException as e:
-            err = e
-            time.sleep(2 * (attempt + 1))
-    print(f"   [fetch failed] {url} -> {err}")
-    return None
+    return _request("POST", url, json=payload)
 
 
 def clean(text):
@@ -78,20 +103,48 @@ def job(company, title, url, location="", posted="", description=""):
     }
 
 
+def run_queries(cfg, one_query):
+    """Run one_query(query) for every title in parallel; merge and de-dupe by URL."""
+    queries = list(dict.fromkeys(cfg["titles"]))
+    if CHECK_MODE:
+        queries = queries[:1]
+    out, seen = [], set()
+    def safe(q):
+        try:
+            return one_query(q)
+        except Exception as e:
+            print(f"   [query error] {q!r}: {type(e).__name__}: {e}")
+            return []
+
+    with ThreadPoolExecutor(max_workers=QUERY_WORKERS) as ex:
+        for jobs in ex.map(safe, queries):
+            for j in jobs:
+                if j["url"] not in seen:
+                    seen.add(j["url"])
+                    out.append(j)
+    return out
+
+
 # ----------------------------------------------------------------- sources
 # Each fetcher returns a list of job dicts. `c` is the company's config block.
 
 def fetch_greenhouse(c, cfg):
-    suffix = "" if CHECK_MODE else "?content=true"
-    r = get(f"https://boards-api.greenhouse.io/v1/boards/{c['board']}/jobs{suffix}")
+    # List WITHOUT content (much smaller); description fetched later only for title matches.
+    r = get(f"https://boards-api.greenhouse.io/v1/boards/{c['board']}/jobs")
     if not r:
         return []
-    return [
-        job(c["name"], j["title"], j["absolute_url"],
-            (j.get("location") or {}).get("name", ""),
-            j.get("updated_at", ""), j.get("content", ""))
-        for j in r.json().get("jobs", [])
-    ]
+    out = []
+    for j in r.json().get("jobs", []):
+        x = job(c["name"], j["title"], j["absolute_url"],
+                (j.get("location") or {}).get("name", ""), j.get("updated_at", ""), "")
+        x["_greenhouse"] = f"https://boards-api.greenhouse.io/v1/boards/{c['board']}/jobs/{j['id']}"
+        out.append(x)
+    return out
+
+
+def greenhouse_description(j):
+    r = get(j["_greenhouse"])
+    return clean(r.json().get("content", "")) if r else ""
 
 
 def fetch_lever(c, cfg):
@@ -118,9 +171,8 @@ def fetch_ashby(c, cfg):
 
 
 def fetch_amazon(c, cfg):
-    out = []
-    for query in cfg["titles"]:
-        offset = 0
+    def one(query):
+        out, offset = [], 0
         while offset < 300:
             params = {
                 "base_query": query,
@@ -146,11 +198,11 @@ def fetch_amazon(c, cfg):
                                "https://www.amazon.jobs" + j["job_path"],
                                j.get("normalized_location", j.get("location", "")),
                                j.get("posted_date", ""), desc))
-            if CHECK_MODE and out:
-                return out
+            if CHECK_MODE or len(jobs) < 100:
+                break
             offset += 100
-            time.sleep(1)
-    return out
+        return out
+    return run_queries(cfg, one)
 
 
 def fetch_atlassian(c, cfg):
@@ -172,11 +224,12 @@ def fetch_workday(c, cfg):
     """c needs: host (e.g. nvidia.wd5.myworkdayjobs.com), tenant, site."""
     host, tenant, site = c["host"], c["tenant"], c["site"]
     api = f"https://{host}/wday/cxs/{tenant}/{site}"
-    out, seen = [], set()
-    for query in cfg["titles"]:
-        offset = 0
+    page = 1 if CHECK_MODE else 20
+
+    def one(query):
+        out, offset = [], 0
         while offset < 200:
-            r = post(f"{api}/jobs", {"appliedFacets": {}, "limit": 1 if CHECK_MODE else 20,
+            r = post(f"{api}/jobs", {"appliedFacets": {}, "limit": page,
                                      "offset": offset, "searchText": query})
             if not r:
                 break
@@ -185,38 +238,34 @@ def fetch_workday(c, cfg):
                 break
             for p in postings:
                 path = p.get("externalPath", "")
-                if path in seen:
+                if not p.get("title") or not path:
                     continue
-                seen.add(path)
-                out.append(job(c["name"], p["title"],
-                               f"https://{host}/en-US/{site}{path}",
-                               p.get("locationsText", ""), p.get("postedOn", ""),
-                               ""))  # description fetched later, only if title matches
-                out[-1]["_workday_detail"] = f"{api}{path}"
-            if CHECK_MODE and out:
-                return out
-            offset += 20
-            time.sleep(1)
-    return out
+                x = job(c["name"], p["title"], f"https://{host}/en-US/{site}{path}",
+                        p.get("locationsText", ""), p.get("postedOn", ""), "")
+                x["_workday_detail"] = f"{api}{path}"
+                out.append(x)
+            if CHECK_MODE or len(postings) < page:
+                break
+            offset += page
+        return out
+    return run_queries(cfg, one)
 
 
 def workday_description(j):
     r = get(j["_workday_detail"])
     if not r:
         return ""
-    info = r.json().get("jobPostingInfo", {})
-    return clean(info.get("jobDescription", ""))
+    return clean(r.json().get("jobPostingInfo", {}).get("jobDescription", ""))
 
 
 def fetch_oracle(c, cfg):
-    """Oracle Cloud HCM 'Candidate Experience' sites (e.g. JPMorgan Chase).
-    c needs: host (e.g. jpmc.fa.oraclecloud.com) and site (e.g. CX_1001)."""
+    """Oracle Cloud HCM 'Candidate Experience' sites. c needs: host and site."""
     host, site = c["host"], c["site"]
     api = f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
     page = 1 if CHECK_MODE else 25
-    out, seen = [], set()
-    for query in cfg["titles"]:
-        offset = 0
+
+    def one(query):
+        out, offset = [], 0
         while offset < 300:
             finder = (f'findReqs;siteNumber={site},limit={page},offset={offset},'
                       f'keyword="{query}",sortBy=POSTING_DATES_DESC')
@@ -230,21 +279,20 @@ def fetch_oracle(c, cfg):
                 break
             for q in reqs:
                 rid = str(q.get("Id", ""))
-                if not rid or rid in seen:
+                if not rid:
                     continue
-                seen.add(rid)
                 locs = [q.get("PrimaryLocation", "")] + [
                     s_.get("Name", "") for s_ in (q.get("secondaryLocations") or [])]
                 j = job(c["name"], q.get("Title", ""),
                         f"https://{host}/hcmUI/CandidateExperience/en/sites/{site}/job/{rid}",
                         "; ".join(x for x in locs if x), q.get("PostedDate", ""), "")
-                j["_oracle"] = (host, site, rid)  # description fetched later, only if title matches
+                j["_oracle"] = (host, site, rid)
                 out.append(j)
-            if CHECK_MODE and out:
-                return out
+            if CHECK_MODE or len(reqs) < page:
+                break
             offset += page
-            time.sleep(1)
-    return out
+        return out
+    return run_queries(cfg, one)
 
 
 def oracle_description(j):
@@ -254,21 +302,19 @@ def oracle_description(j):
                     "finder": f'ById;Id="{rid}",siteNumber={site}'})
     if not r:
         return ""
-    items = r.json().get("items") or [{}]
-    d = items[0]
+    d = (r.json().get("items") or [{}])[0]
     return clean(" ".join(str(d.get(k) or "") for k in (
         "ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr")))
 
+
 def fetch_smartrecruiters(c, cfg):
-    """SmartRecruiters public postings API.
-    c needs: board (the company id in the URL, e.g. SWIGGY in
-    jobs.smartrecruiters.com/SWIGGY/...). Optional: country (e.g. in)."""
+    """SmartRecruiters public postings API. c needs: board. Optional: country."""
     board = c["board"]
     api = f"https://api.smartrecruiters.com/v1/companies/{board}/postings"
     page = 1 if CHECK_MODE else 100
-    out, seen = [], set()
-    for query in cfg["titles"]:
-        offset = 0
+
+    def one(query):
+        out, offset = [], 0
         while offset < 300:
             params = {"q": query, "limit": page, "offset": offset}
             if c.get("country"):
@@ -281,9 +327,8 @@ def fetch_smartrecruiters(c, cfg):
                 break
             for p in items:
                 pid = str(p.get("id", ""))
-                if not pid or pid in seen:
+                if not pid:
                     continue
-                seen.add(pid)
                 loc = p.get("location") or {}
                 country = str(loc.get("country") or "")
                 parts = [loc.get("city", ""), loc.get("region", ""),
@@ -291,15 +336,13 @@ def fetch_smartrecruiters(c, cfg):
                 j = job(c["name"], p.get("name", ""),
                         f"https://jobs.smartrecruiters.com/{board}/{pid}",
                         ", ".join(x for x in parts if x), p.get("releasedDate", ""), "")
-                j["_smartrecruiters"] = f"{api}/{pid}"  # description fetched later, only if title matches
+                j["_smartrecruiters"] = f"{api}/{pid}"
                 out.append(j)
-            if CHECK_MODE and out:
-                return out
-            if len(items) < page:
+            if CHECK_MODE or len(items) < page:
                 break
             offset += page
-            time.sleep(1)
-    return out
+        return out
+    return run_queries(cfg, one)
 
 
 def smartrecruiters_description(j):
@@ -311,6 +354,7 @@ def smartrecruiters_description(j):
     return clean(" ".join(str((sections.get(k) or {}).get("text") or "")
                           for k in ("jobDescription", "qualifications", "additionalInformation")))
 
+
 FETCHERS = {
     "greenhouse": fetch_greenhouse,
     "lever": fetch_lever,
@@ -321,11 +365,18 @@ FETCHERS = {
     "oracle": fetch_oracle,
     "smartrecruiters": fetch_smartrecruiters,
 }
+# marker key on a job -> function that fetches its description lazily
+DETAIL_FETCHERS = {
+    "_greenhouse": greenhouse_description,
+    "_workday_detail": workday_description,
+    "_oracle": oracle_description,
+    "_smartrecruiters": smartrecruiters_description,
+}
 
 
 # ----------------------------------------------------------------- filtering
 def norm(s):
-    """Lower-case (casefold), strip accents, collapse whitespace - so matching ignores case/spacing."""
+    """Lower-case (casefold), strip accents, collapse whitespace."""
     s = unicodedata.normalize("NFKD", str(s if s is not None else ""))
     s = "".join(ch for ch in s if not unicodedata.combining(ch))
     s = s.replace("\xa0", " ").casefold()
@@ -333,7 +384,7 @@ def norm(s):
 
 
 def as_list(v):
-    """Config value -> clean list of normalised, non-empty strings (accepts a lone string too)."""
+    """Config value -> clean list of normalised, non-empty strings."""
     if v is None:
         return []
     if isinstance(v, (str, int, float)):
@@ -342,24 +393,18 @@ def as_list(v):
 
 
 def prefix_re(term):
-    """term must start at a word boundary ('sde' won't match inside another word)."""
     return re.compile(r"(?<![a-z0-9])" + r"\s+".join(re.escape(p) for p in term.split()))
 
 
 def word_re(term):
-    """term must be a whole word (used for short exclusions like 'sr', 'vp')."""
     return re.compile(r"(?<![a-z0-9])" + r"\s+".join(re.escape(p) for p in term.split()) + r"(?![a-z0-9])")
 
 
 BUILTIN_EXCLUDES = ["senior", "sr", "sr.", "staff", "principal", "lead", "manager", "director",
                     "head of", "architect", "vp", "vice president", "distinguished", "fellow"]
-# 'Software Engineer II', 'SDE 2', 'Engineer III' ... but not 'Engineer I' or 'Engineer - 2024 Graduates'
 LEVEL_RE = re.compile(r"(?<![a-z0-9])(?:engineer|developer|sde|swe|sdet|programmer|scientist)"
                       r"\s*[-,:]?\s*(?:ii|iii|iv|v|2|3|4|5|6)(?![a-z0-9])")
-# bengaluru/bangalore and gurugram/gurgaon are the same place: listing either matches both
 LOCATION_ALIASES = [("bengaluru", "bangalore", "bengalooru"), ("gurugram", "gurgaon")]
-
-# equivalent job titles: listing one matches all of them
 TITLE_ALIASES = [("software engineer", "software development engineer", "software developer"),
                  ("ai engineer", "artificial intelligence engineer"),
                  ("ml engineer", "machine learning engineer")]
@@ -378,7 +423,6 @@ EXP_RE = re.compile(r"(?<![a-z0-9.])" + _NUM + r"\s*(?:\+|plus)?\s*(?:(?:-|â€“|â
 
 
 def min_years_required(text):
-    """Smallest 'N years' figure near the word 'experience' (digits or words, ranges, decimals)."""
     text = norm(text)
     found = []
     for m in EXP_RE.finditer(text):
@@ -390,7 +434,6 @@ def min_years_required(text):
 
 
 def is_vague_location(loc):
-    """Locations too vague to reject: empty, plain 'India', '2 Locations', 'Remote - India'..."""
     return (not loc
             or loc in {"india", "pan india", "anywhere in india", "multiple locations",
                        "various locations", "multiple", "various"}
@@ -399,7 +442,6 @@ def is_vague_location(loc):
 
 
 def get_rules(cfg):
-    """Compile the filter settings once (cached inside cfg)."""
     if "_rules" in cfg:
         return cfg["_rules"]
     include = as_list(cfg.get("titles"))
@@ -467,7 +509,6 @@ REQUIRED_FIELDS = {"greenhouse": ["board"], "lever": ["board"], "ashby": ["board
 
 
 def load_config(path):
-    """Read config.yaml and catch typos/missing fields early, with clear messages."""
     raw = yaml.safe_load(Path(path).read_text())
     if not isinstance(raw, dict):
         sys.exit(f"[config error] {path} is empty or not valid YAML")
@@ -552,7 +593,6 @@ def write_docx(path, rows, manual=()):
             add_hyperlink(p, r["url"], "Open job")
             p.add_run(f"  ({r['note']})")
 
-    # Always-present, separate table of manual-check links
     doc.add_heading("MANUAL links - check these yourself", level=2)
     if manual:
         mtable = doc.add_table(rows=1, cols=3)
@@ -574,11 +614,9 @@ def write_docx(path, rows, manual=()):
 
 
 # ----------------------------------------------------------------- main
-def run_check(companies, cfg):
-    """Quick check: one real job per company is enough to prove it works."""
+def run_check(companies, cfg, workers):
     global CHECK_MODE
     CHECK_MODE = True
-    from concurrent.futures import ThreadPoolExecutor
 
     def probe(c):
         if c["source"] == "manual":
@@ -595,13 +633,12 @@ def run_check(companies, cfg):
         return f"[OK]     {c['name']}: working (e.g. \"{jobs[0]['title']}\")"
 
     print("Quick check: one job per company is enough...\n")
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    with ThreadPoolExecutor(max_workers=workers) as ex:
         for line in ex.map(probe, companies):
             print(line)
 
 
 def explain(title, loc, desc, cfg):
-    """Show exactly which config words hit a title, and the final verdict."""
     R = get_rules(cfg)
     t = norm(title)
     inc = [w for w, rx in R["include"] if rx.search(t)]
@@ -611,6 +648,49 @@ def explain(title, loc, desc, cfg):
     print(f"Exclude words matched: {exc or 'none'}")
     verdict, note = evaluate({"title": title, "location": loc, "description": desc}, cfg)
     print(f"Result:                {verdict or 'REJECTED'} - {note}")
+
+
+def process_company(c, cfg, seen, deadline, debug):
+    """Runs in a worker thread. Returns (company_name, scanned_count, rows, status)."""
+    if time.time() > deadline:
+        return c["name"], 0, [], "timeout"
+    fetcher = FETCHERS.get(c["source"])
+    if not fetcher:
+        return c["name"], 0, [], f"unknown source '{c['source']}'"
+    try:
+        jobs = fetcher(c, cfg)
+    except Exception as e:
+        return c["name"], 0, [], f"error: {e}"
+
+    ready, need_detail = [], []
+    for j in jobs:
+        if j["url"] in seen:
+            continue
+        key = next((k for k in DETAIL_FETCHERS if k in j), None)
+        if key and not j["description"]:
+            # cheap title/location check first: only fetch the detail page for plausible jobs
+            if evaluate({**j, "description": "x"}, cfg)[0] is None:
+                continue
+            need_detail.append((j, key))
+        else:
+            ready.append(j)
+
+    if need_detail:
+        def fill(item):
+            j, key = item
+            j["description"] = DETAIL_FETCHERS[key](j)
+        with ThreadPoolExecutor(max_workers=DETAIL_WORKERS) as ex:
+            list(ex.map(fill, need_detail))
+        ready += [j for j, _ in need_detail]
+
+    rows = []
+    for j in ready:
+        verdict, note = evaluate(j, cfg)
+        if not verdict and debug and note != "title: no keyword match":
+            print(f"   [dropped] {j['company']} | {j['title']} | {j['location']} | {note}")
+        if verdict:
+            rows.append({**j, "verdict": verdict, "note": note})
+    return c["name"], len(jobs), rows, "ok"
 
 
 def main():
@@ -623,8 +703,11 @@ def main():
     ap.add_argument("--desc", default="", help="description text to use with --test")
     ap.add_argument("--debug", action="store_true",
                     help="print why jobs with a matching title were dropped")
+    ap.add_argument("--workers", type=int, default=24,
+                    help="companies fetched in parallel (default 24)")
     args = ap.parse_args()
     cfg = load_config(args.config)
+    get_rules(cfg)  # compile regexes once, before threads start
 
     if args.test is not None:
         explain(args.test, args.loc, args.desc, cfg)
@@ -637,60 +720,41 @@ def main():
 
     deadline = time.time() + cfg.get("max_runtime_minutes", 90) * 60
     companies = cfg["companies"][:]
-    random.shuffle(companies)  # so a time cut-off doesn't always skip the same companies
+    random.shuffle(companies)
 
     if args.check:
-        run_check(companies, cfg)
+        run_check(companies, cfg, args.workers)
         return
 
     manual = [c for c in companies if c["source"] == "manual"]
     companies = [c for c in companies if c["source"] != "manual"]
-    new_rows = []
-    for c in companies:
-        if time.time() > deadline:
-            print("Time limit reached; stopping.")
-            break
-        fetcher = FETCHERS.get(c["source"])
-        if not fetcher:
-            print(f"[skip] {c['name']}: unknown source '{c['source']}'")
-            continue
-        try:
-            jobs = fetcher(c, cfg)
-        except Exception as e:  # one broken company shouldn't kill the run
-            print(f"[error] {c['name']}: {e}")
-            continue
-        hits = 0
-        for j in jobs:
-            if j["url"] in seen:
-                continue
-            # cheap title/location check first, so we only fetch the detail page when needed
-            if ("_workday_detail" in j or "_oracle" in j or "_smartrecruiters" in j) and not j["description"]:
-                if evaluate({**j, "description": "x"}, cfg)[0] is None:
-                    continue
-                if "_workday_detail" in j:
-                    j["description"] = workday_description(j)
-                elif "_oracle" in j:
-                    j["description"] = oracle_description(j)
-                else:
-                    j["description"] = smartrecruiters_description(j)
-                time.sleep(0.5)
-            verdict, note = evaluate(j, cfg)
-            if not verdict and args.debug and note != "title: no keyword match":
-                print(f"   [dropped] {j['title']} | {j['location']} | {note}")
-            if verdict:
-                seen.add(j["url"])
-                new_rows.append({**j, "verdict": verdict, "note": note})
-                hits += 1
-        print(f"[ok] {c['name']}: {len(jobs)} jobs scanned, {hits} new matches")
-        time.sleep(random.uniform(1, 3))
+    new_rows, t0 = [], time.time()
 
+    with ThreadPoolExecutor(max_workers=args.workers) as ex:
+        futures = [ex.submit(process_company, c, cfg, seen, deadline, args.debug) for c in companies]
+        done = 0
+        for f in as_completed(futures):
+            done += 1
+            name, scanned, rows, status = f.result()
+            if status != "ok":
+                print(f"[{done}/{len(companies)}] [skip] {name}: {status}")
+                continue
+            fresh = []
+            for r in rows:                 # de-dupe + record seen in the main thread only
+                if r["url"] not in seen:
+                    seen.add(r["url"])
+                    fresh.append(r)
+            new_rows += fresh
+            print(f"[{done}/{len(companies)}] [ok] {name}: {scanned} jobs scanned, {len(fresh)} new matches")
+
+    print(f"\nFinished in {time.time() - t0:.0f}s")
     if new_rows or manual:
         stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
         write_docx(out_dir / f"jobs_{stamp}.docx", new_rows, manual)
         seen_file.write_text(json.dumps(sorted(seen)))
-        print(f"\nSaved {len(new_rows)} new jobs to {out_dir}")
+        print(f"Saved {len(new_rows)} new jobs to {out_dir}")
     else:
-        print("\nNo new matching jobs this run.")
+        print("No new matching jobs this run.")
 
 
 if __name__ == "__main__":
