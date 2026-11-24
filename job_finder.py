@@ -259,6 +259,57 @@ def oracle_description(j):
     return clean(" ".join(str(d.get(k) or "") for k in (
         "ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr")))
 
+def fetch_smartrecruiters(c, cfg):
+    """SmartRecruiters public postings API.
+    c needs: board (the company id in the URL, e.g. SWIGGY in
+    jobs.smartrecruiters.com/SWIGGY/...). Optional: country (e.g. in)."""
+    board = c["board"]
+    api = f"https://api.smartrecruiters.com/v1/companies/{board}/postings"
+    page = 1 if CHECK_MODE else 100
+    out, seen = [], set()
+    for query in cfg["titles"]:
+        offset = 0
+        while offset < 300:
+            params = {"q": query, "limit": page, "offset": offset}
+            if c.get("country"):
+                params["country"] = c["country"]
+            r = get(api, params=params)
+            if not r:
+                break
+            items = r.json().get("content") or []
+            if not items:
+                break
+            for p in items:
+                pid = str(p.get("id", ""))
+                if not pid or pid in seen:
+                    continue
+                seen.add(pid)
+                loc = p.get("location") or {}
+                country = str(loc.get("country") or "")
+                parts = [loc.get("city", ""), loc.get("region", ""),
+                         "India" if country.lower() == "in" else country.upper()]
+                j = job(c["name"], p.get("name", ""),
+                        f"https://jobs.smartrecruiters.com/{board}/{pid}",
+                        ", ".join(x for x in parts if x), p.get("releasedDate", ""), "")
+                j["_smartrecruiters"] = f"{api}/{pid}"  # description fetched later, only if title matches
+                out.append(j)
+            if CHECK_MODE and out:
+                return out
+            if len(items) < page:
+                break
+            offset += page
+            time.sleep(1)
+    return out
+
+
+def smartrecruiters_description(j):
+    r = get(j["_smartrecruiters"])
+    if not r:
+        return ""
+    sections = (r.json().get("jobAd") or {}).get("sections") or {}
+    # skip companyDescription: its "N years of experience" boasts would confuse the experience check
+    return clean(" ".join(str((sections.get(k) or {}).get("text") or "")
+                          for k in ("jobDescription", "qualifications", "additionalInformation")))
 
 FETCHERS = {
     "greenhouse": fetch_greenhouse,
@@ -268,6 +319,7 @@ FETCHERS = {
     "workday": fetch_workday,
     "atlassian": fetch_atlassian,
     "oracle": fetch_oracle,
+    "smartrecruiters": fetch_smartrecruiters,
 }
 
 
@@ -410,7 +462,7 @@ KNOWN_KEYS = {"titles", "exclude_title_words", "max_years_experience", "location
               "exclude_description_words", "max_runtime_minutes", "output_dir", "companies",
               "exclude_senior_levels", "use_builtin_exclusions"}
 REQUIRED_FIELDS = {"greenhouse": ["board"], "lever": ["board"], "ashby": ["board"],
-                   "workday": ["host", "tenant", "site"], "oracle": ["host", "site"],
+                   "workday": ["host", "tenant", "site"], "oracle": ["host", "site"], "smartrecruiters": ["board"],
                    "amazon": [], "atlassian": [], "manual": []}
 
 
@@ -612,11 +664,15 @@ def main():
             if j["url"] in seen:
                 continue
             # cheap title/location check first, so we only fetch the detail page when needed
-            if ("_workday_detail" in j or "_oracle" in j) and not j["description"]:
+            if ("_workday_detail" in j or "_oracle" in j or "_smartrecruiters" in j) and not j["description"]:
                 if evaluate({**j, "description": "x"}, cfg)[0] is None:
                     continue
-                j["description"] = (workday_description(j) if "_workday_detail" in j
-                                    else oracle_description(j))
+                if "_workday_detail" in j:
+                    j["description"] = workday_description(j)
+                elif "_oracle" in j:
+                    j["description"] = oracle_description(j)
+                else:
+                    j["description"] = smartrecruiters_description(j)
                 time.sleep(0.5)
             verdict, note = evaluate(j, cfg)
             if not verdict and args.debug and note != "title: no keyword match":
