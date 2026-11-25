@@ -49,7 +49,10 @@ max_years_experience: 1      # accept if required minimum years is BELOW this (1
 
 use_model: true
 ollama_model: qwen2.5:3b     # switch to qwen2.5:7b if you see wrong answers
-ollama_url: https://blocks-worcester-valves-bin.trycloudflare.com
+
+# ollama_url: https://blocks-worcester-valves-bin.trycloudflare.com      #for remote ollama server (copy from the colab output cell)
+ollama_url: http://localhost:11434      #for local ollama server (default port 11434)
+
 model_timeout_seconds: 180
 workday_parallel: 6          # how many Workday requests at once (all companies share this)
 workday_gap_seconds: 0.15    # minimum pause between Workday requests

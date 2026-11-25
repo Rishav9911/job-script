@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# code 1
 """
 Job finder (fast version + local model check).
 
@@ -7,8 +8,8 @@ Pipeline:
   2. RULES (no model): title include/exclude, level II+, location list, excluded words.
   3. MODEL (only jobs that passed the rules): a local Qwen model (via Ollama) reads the
      job description and checks two things only:
-        - is it for freshers / under `max_years_experience` years of experience?
-        - is the job located in India?
+        - does the job ask for fewer than `max_years_experience` years of experience?
+        - is the job located in one of your `locations` (from config.yaml)?
   4. Verdict: clear yes -> "match", clear no -> dropped, unsure -> "maybe (check manually)".
 
 New matches are saved to a single .docx. It never applies to anything.
@@ -16,7 +17,7 @@ New matches are saved to a single .docx. It never applies to anything.
 Run:  python job_finder.py                (uses config.yaml next to this file)
       python job_finder.py -c other.yaml
       python job_finder.py --workers 32   (more parallelism)
-      python job_finder.py --no-model     (rules only; every survivor becomes "maybe")
+      python job_finder.py --no-model     (rules only, no AI check)
 """
 import argparse
 import difflib
@@ -519,6 +520,9 @@ def min_years_required(text):
     return min(found) if found else None
 
 
+INDIA_LABEL = re.compile(r"pan india|anywhere in india|(?:remote\W+)?india(?:\W+remote)?")
+
+
 def is_vague_location(loc):
     return (not loc
             or loc in {"india", "pan india", "anywhere in india", "multiple locations",
@@ -569,11 +573,14 @@ def rules_check(j, cfg, final=True):
         return False, "title: level II or above"
 
     loc = norm(j.get("location"))
-    if R["locs"] and not is_vague_location(loc) and not any(rx.search(loc) for _, rx in R["locs"]):
+    vague = is_vague_location(loc)
+    if vague and INDIA_LABEL.fullmatch(loc) and not any(rx.search(loc) for _, rx in R["locs"]):
+        vague = False       # the location is just "India", and India is not one of your locations
+    if R["locs"] and not vague and not any(rx.search(loc) for _, rx in R["locs"]):
         return False, f"location: '{j.get('location')}' not in your list"
     # Vague location ("Multiple locations", "2 Locations", empty): the job text, title or link must
-    # mention one of your locations, otherwise we cannot tell it is in India - drop it.
-    if (final and R["locs"] and is_vague_location(loc) and "india" not in loc
+    # mention one of your locations, otherwise we cannot tell where it is - drop it.
+    if (final and R["locs"] and vague and "india" not in loc
             and len(j.get("description") or "") >= 40):
         where = norm(f"{j.get('title')} {j.get('description')} {j.get('url')}")
         if not any(rx.search(where) for _, rx in R["locs"]):
@@ -668,6 +675,7 @@ def init_model(cfg, disabled=False):
     MODEL["url"] = str(cfg.get("ollama_url", MODEL["url"])).rstrip("/")
     MODEL["timeout"] = float(cfg.get("model_timeout_seconds", MODEL["timeout"]))
     MODEL["jd_chars"] = int(cfg.get("model_jd_chars", MODEL["jd_chars"]))
+    MODEL["places"] = ", ".join(as_list(cfg.get("locations")))     # what the model checks the location against
     try:
         r = requests.get(f"{MODEL['url']}/api/tags", timeout=5)
         r.raise_for_status()
@@ -697,8 +705,15 @@ def ask_model(j):
             return None
 
     jd = trim_jd(j.get("description", ""), MODEL["jd_chars"])
+    # The location question uses YOUR `locations` list from config.yaml. (The answer field is still
+    # called "in_india" so answers saved by earlier runs keep working.)
+    places = MODEL.get("places") or ""
+    where_line = (f"- in_india: true if the job is located in one of these places: {places}. "
+                  f"false if it is clearly located somewhere else. null if unclear.\n"
+                  if places else
+                  "- in_india: always null (the job's location does not matter).\n")
     prompt = (
-        "You screen job postings for a fresher (a candidate with no work experience). "
+        "You read job postings and report facts from them. "
         "Answer ONLY from the text below. Do not guess.\n\n"
         f"Job title: {j['title']}\n"
         f"Location field: {j.get('location') or '(not given)'}\n\n"
@@ -710,8 +725,7 @@ def ask_model(j):
         "Ignore 'preferred' or 'nice to have' years, years the company has existed, and years of study.\n"
         "- experience_evidence: the exact short phrase copied from the description that you used for min_years "
         "(empty string if none).\n"
-        "- in_india: true if the job is located in India, false if it is clearly located outside India, "
-        "null if unclear.\n"
+        f"{where_line}"
         "- location_evidence: the exact short phrase copied from the text that shows the job's location "
         "(empty string if none)."
     )
@@ -794,11 +808,14 @@ def judge(j, cfg, rules_verdict="maybe", rules_note=""):
     if isinstance(yrs, (int, float)) and not isinstance(yrs, bool) and quote_in(ev, text):
         exp_ok = yrs < R["max_years"]
 
-    # ---- India: drop only when the model says "not India" AND its quote is really in the text
+    # ---- location (against YOUR `locations` list): drop only when the model says "somewhere else"
+    # AND its quote is really in the text. No locations configured = no location filter.
     ind = ans.get("in_india")
     lev = str(ans.get("location_evidence") or "")
     india_ok = None
-    if ind is True:
+    if not R["locs"]:
+        india_ok = True
+    elif ind is True:
         india_ok = True
     elif ind is False and quote_in(lev, text):
         india_ok = False
@@ -808,9 +825,9 @@ def judge(j, cfg, rules_verdict="maybe", rules_note=""):
     if exp_ok is False:
         return None, f"experience: needs {yrs:g}+ yrs ('{ev}')"
     if india_ok is False:
-        return None, f"location: not India ('{lev}')"
+        return None, f"location: not in your list ('{lev}')"
     if exp_ok and india_ok:
-        return "match", f"fresher/<{R['max_years']:g} yr: {yrs:g}+ yrs ('{ev}'), India"
+        return "match", f"under {R['max_years']:g} yr: {yrs:g}+ yrs ('{ev}'), location ok"
     notes = []
     if exp_ok is None:
         notes.append("experience unclear")
