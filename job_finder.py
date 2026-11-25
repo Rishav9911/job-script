@@ -553,8 +553,9 @@ def get_rules(cfg):
     return cfg["_rules"]
 
 
-def rules_check(j, cfg):
-    """Cheap checks, no model. Returns (True, '') or (False, reason)."""
+def rules_check(j, cfg, final=True):
+    """Cheap checks, no model. Returns (True, '') or (False, reason).
+    final=False is used before the full description has been fetched (title/location pre-check)."""
     R = get_rules(cfg)
     title = norm(j.get("title"))
     if not title:
@@ -570,6 +571,13 @@ def rules_check(j, cfg):
     loc = norm(j.get("location"))
     if R["locs"] and not is_vague_location(loc) and not any(rx.search(loc) for _, rx in R["locs"]):
         return False, f"location: '{j.get('location')}' not in your list"
+    # Vague location ("Multiple locations", "2 Locations", empty): the job text, title or link must
+    # mention one of your locations, otherwise we cannot tell it is in India - drop it.
+    if (final and R["locs"] and is_vague_location(loc) and "india" not in loc
+            and len(j.get("description") or "") >= 40):
+        where = norm(f"{j.get('title')} {j.get('description')} {j.get('url')}")
+        if not any(rx.search(where) for _, rx in R["locs"]):
+            return False, f"location: '{j.get('location') or 'not given'}' and no listed location in the job text"
 
     desc = norm(j.get("description"))
     for t, rx in R["desc_excl"]:
@@ -578,9 +586,9 @@ def rules_check(j, cfg):
     return True, ""
 
 
-def rules_eval(j, cfg):
+def rules_eval(j, cfg, final=True):
     """Your original rule set, no model. Returns (verdict, note): 'match', 'maybe' or None (= dropped)."""
-    ok, note = rules_check(j, cfg)
+    ok, note = rules_check(j, cfg, final)
     if not ok:
         return None, note
     R = get_rules(cfg)
@@ -599,7 +607,13 @@ def rules_eval(j, cfg):
 # ----------------------------------------------------------------- MODEL layer (local Qwen via Ollama)
 MODEL = {"enabled": False, "name": "qwen2.5:3b", "url": "http://localhost:11434",
          "timeout": 180, "jd_chars": 3500, "fails": 0, "deadline": float("inf"), "cache": {},
-         "waiting": 0, "calls": 0, "user_off": False}
+         "waiting": 0, "calls": 0, "user_off": False,
+         "cached": 0, "no_desc": 0, "unavail": 0, "failed": 0}
+
+
+def _bump(key):
+    with _MODEL_LOCK:
+        MODEL[key] += 1
 MAX_MODEL_FAILS = 5          # this many failures in a row -> stop calling the model for this run
 _MODEL_SEM = Semaphore(1)    # Ollama on CPU handles one request at a time; queue the rest
 _MODEL_LOCK = Lock()
@@ -635,6 +649,15 @@ def trim_jd(text, limit):
     return " ... ".join(text[a:b] for a, b in spans)[:limit]
 
 
+def _model_unavailable(why):
+    """No model at startup: warn clearly, then carry on with the rules alone (same as --no-model)."""
+    MODEL["user_off"] = True
+    print(f"\n[model WARNING] {why}")
+    print("[model WARNING] Continuing with the RULES ONLY: jobs are matched on title, location and the\n"
+          "         experience wording in the description. Jobs whose experience is not stated are\n"
+          "         listed under 'Maybe'.\n")
+
+
 def init_model(cfg, disabled=False):
     """Read model settings, check Ollama is running and the model is pulled."""
     if disabled or not cfg.get("use_model", True):
@@ -650,11 +673,15 @@ def init_model(cfg, disabled=False):
         r.raise_for_status()
         names = [m.get("name", "") for m in r.json().get("models", [])]
     except Exception as e:
-        sys.exit(f"[model error] cannot reach Ollama at {MODEL['url']} ({e}).\n"
-                 f"  Start it (open the Ollama app, or run: ollama serve) or run with --no-model.")
+        _model_unavailable(f"cannot reach Ollama at {MODEL['url']} ({type(e).__name__}).\n"
+                           f"         To use the model: start Ollama (open the app, or run: ollama serve),\n"
+                           f"         then run this script again.")
+        return
     want = MODEL["name"]
     if not any(n == want or n == want + ":latest" for n in names):
-        sys.exit(f"[model error] model '{want}' is not downloaded. Run:  ollama pull {want}")
+        _model_unavailable(f"model '{want}' is not downloaded.\n"
+                           f"         To use the model, run:  ollama pull {want}  and then run this script again.")
+        return
     MODEL["enabled"] = True
     print(f"[model] ON - {want} at {MODEL['url']}")
 
@@ -664,6 +691,7 @@ def ask_model(j):
     key = f"{MODEL['name']}|{j['url']}"
     with _MODEL_LOCK:
         if key in MODEL["cache"]:
+            MODEL["cached"] += 1
             return MODEL["cache"][key]
         if not MODEL["enabled"] or time.time() > MODEL["deadline"]:
             return None
@@ -746,12 +774,15 @@ def judge(j, cfg, rules_verdict="maybe", rules_note=""):
     if MODEL["user_off"]:
         return rules_verdict, rules_note          # --no-model: keep the rules' own verdict
     if not MODEL["enabled"]:
+        _bump("unavail")
         return "maybe", "model unavailable - check manually"
     if len(j.get("description", "")) < 40:
+        _bump("no_desc")
         return "maybe", "no job description available - check manually"
 
     ans = ask_model(j)
     if ans is None:
+        _bump("failed")
         return "maybe", "model unsure/failed - check manually"
 
     text = squash(f"{j.get('title', '')} {j.get('location', '')} {j.get('description', '')}")
@@ -874,8 +905,13 @@ def write_docx(path, rows, manual=()):
     from docx import Document
     doc = Document()
     doc.add_heading(f"New jobs - {date.today():%d %b %Y}", level=1)
-    doc.add_paragraph(f"{len(rows)} new listings. 'Match' = the model confirmed fresher / under-1-year "
-                      f"and India; 'Maybe' = the model was unsure or unavailable, read the JD.")
+    if MODEL["user_off"]:
+        doc.add_paragraph(f"{len(rows)} new listings (rules only, no model). 'Match' = the job text states "
+                          f"an experience requirement that fits or uses entry-level wording; "
+                          f"'Maybe' = experience not stated, read the JD.")
+    else:
+        doc.add_paragraph(f"{len(rows)} new listings. 'Match' = the model confirmed fresher / under-1-year "
+                          f"and India; 'Maybe' = the model was unsure or unavailable, read the JD.")
     for verdict in ("match", "maybe"):
         subset = [r for r in rows if r["verdict"] == verdict]
         if not subset:
@@ -1005,7 +1041,7 @@ def process_company(c, cfg, seen, deadline, debug):
         key = next((k for k in DETAIL_FETCHERS if k in j), None)
         if key and not j["description"]:
             # cheap rules first: only fetch the detail page for jobs that can still match
-            if rules_eval({**j, "description": "x"}, cfg)[0] is None:
+            if rules_eval({**j, "description": "x"}, cfg, final=False)[0] is None:
                 continue
             need_detail.append((j, key))
         else:
@@ -1113,6 +1149,10 @@ def main():
             print(f"[warning] could not save model cache: {e}")
 
     print(f"\nFinished in {time.time() - t0:.0f}s")
+    if not MODEL["user_off"]:
+        print(f"Model breakdown: {MODEL['calls']} asked fresh | {MODEL['cached']} answered from cache "
+              f"(not printed) | {MODEL['no_desc']} had no description | {MODEL['failed']} failed/timed out | "
+              f"{MODEL['unavail']} skipped (model down)")
     if new_rows or manual:
         stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
         write_docx(out_dir / f"jobs_{stamp}.docx", new_rows, manual)
